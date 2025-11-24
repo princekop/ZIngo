@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import AgoraRTC, {
+import type {
     IAgoraRTCClient,
     ICameraVideoTrack,
     IMicrophoneAudioTrack,
@@ -37,14 +37,31 @@ export function useAgora(appId: string, channelName: string, uid: string) {
     useEffect(() => {
         if (!appId) return
 
-        const agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
-        setClient(agoraClient)
+        let mounted = true
+        let agoraClient: IAgoraRTCClient | null = null
+
+        const initAgora = async () => {
+            try {
+                const AgoraRTC = (await import('agora-rtc-sdk-ng')).default
+                if (!mounted) return
+
+                agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' })
+                setClient(agoraClient)
+            } catch (err) {
+                console.error("Failed to load Agora SDK", err)
+            }
+        }
+
+        initAgora()
 
         return () => {
+            mounted = false
             localAudioTrack?.close()
             localVideoTrack?.close()
             localScreenTrack?.close()
-            agoraClient.leave()
+            if (agoraClient) {
+                agoraClient.leave()
+            }
         }
     }, [appId])
 
@@ -120,6 +137,7 @@ export function useAgora(appId: string, channelName: string, uid: string) {
             await client.join(appId, channelName, data.token, uid)
 
             // Create and publish audio track
+            const AgoraRTC = (await import('agora-rtc-sdk-ng')).default
             const audioTrack = await AgoraRTC.createMicrophoneAudioTrack()
             setLocalAudioTrack(audioTrack)
             await client.publish(audioTrack)
@@ -187,6 +205,7 @@ export function useAgora(appId: string, channelName: string, uid: string) {
         } else {
             // Enable video
             try {
+                const AgoraRTC = (await import('agora-rtc-sdk-ng')).default
                 const videoTrack = await AgoraRTC.createCameraVideoTrack()
                 setLocalVideoTrack(videoTrack)
                 await client?.publish(videoTrack)
@@ -210,6 +229,7 @@ export function useAgora(appId: string, channelName: string, uid: string) {
         } else {
             // Start screen share
             try {
+                const AgoraRTC = (await import('agora-rtc-sdk-ng')).default
                 const screenTrack = await AgoraRTC.createScreenVideoTrack({}, "auto")
                 if (Array.isArray(screenTrack)) {
                     // Handle case where audio is also returned

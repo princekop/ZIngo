@@ -7,7 +7,7 @@ import useSWR from 'swr'
 import { Server, Member, Role, Category, BanItem, TabType } from '../types'
 import { SettingsTabs } from './SettingsTabs'
 import { ArrowLeft } from 'lucide-react'
-import { serverAPI } from '../lib/api-service'
+import { serverAPI } from '../../lib/api-service'
 
 interface ServerSettingsContentProps {
   serverId: string

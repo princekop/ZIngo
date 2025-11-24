@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Server } from '../../types'
-import { serverAPI } from '../../lib/api-service'
+import { serverAPI } from '../../../lib/api-service'
 import { Upload, Image as ImageIcon, Save, Loader2 } from 'lucide-react'
 import { useSWRConfig } from 'swr'
 
