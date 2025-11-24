@@ -32,7 +32,7 @@ export default function Avatar({ src, alt = 'Avatar', size = 48, className = '',
         transform: 'translateZ(0)',
       }}
     >
-      {src ? (
+      {src && src.trim() !== '' ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}

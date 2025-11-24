@@ -27,7 +27,7 @@ export async function GET(
     }
 
     // Get server categories with channels
-    const categories = await prisma.category.findMany({
+    let categories = await prisma.category.findMany({
       where: { serverId },
       include: {
         channels: {
@@ -36,6 +36,39 @@ export async function GET(
       },
       orderBy: { createdAt: 'asc' },
     })
+
+    // Self-heal defaults: if all categories/channels are gone, recreate sensible defaults
+    const totalChannels = categories.reduce((acc: number, c: any) => acc + c.channels.length, 0)
+    if (categories.length === 0 || totalChannels === 0) {
+      await prisma.$transaction(async (tx: typeof prisma) => {
+        // remove any orphaned data for safety (optional for sqlite)
+        if (categories.length > 0) {
+          await tx.channel.deleteMany({ where: { serverId } })
+          await tx.category.deleteMany({ where: { serverId } })
+        }
+        const cat = await tx.category.create({ data: { name: 'General', emoji: '📂', serverId } })
+        await tx.channel.create({ data: { name: 'chat', type: 'text', categoryId: cat.id, serverId, isPrivate: false } })
+        await tx.channel.create({ data: { name: 'join', type: 'announcement', categoryId: cat.id, serverId, isPrivate: false } })
+        await tx.channel.create({ data: { name: 'leave', type: 'announcement', categoryId: cat.id, serverId, isPrivate: false } })
+        await tx.channel.create({ data: { name: 'Voice Channel', type: 'voice', categoryId: cat.id, serverId, isPrivate: false } })
+        // Fallback admin-only channel (not deletable in UI scope)
+        await tx.channel.create({
+          data: {
+            name: 'welcome-prince',
+            type: 'announcement',
+            categoryId: cat.id,
+            serverId,
+            isPrivate: true,
+          },
+        })
+      })
+      // Reload after creation
+      categories = await prisma.category.findMany({
+        where: { serverId },
+        include: { channels: { orderBy: { createdAt: 'asc' } } },
+        orderBy: { createdAt: 'asc' },
+      })
+    }
 
     return NextResponse.json(categories)
   } catch (error) {

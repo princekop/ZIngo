@@ -22,26 +22,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create server
-    const server = await prisma.server.create({
-      data: {
-        name,
-        description: description || '',
-        icon: icon || name.substring(0, 2).toUpperCase(),
-        ownerId,
-      },
+    // Create server and defaults in a transaction
+    const result = await prisma.$transaction(async (tx: typeof prisma) => {
+      const server = await tx.server.create({
+        data: {
+          name,
+          description: description || '',
+          icon: icon || name.substring(0, 2).toUpperCase(),
+          ownerId,
+        },
+      })
+
+      // Owner member
+      await tx.serverMember.create({
+        data: { userId: ownerId, serverId: server.id, role: 'owner' },
+      })
+
+      // Default category
+      const category = await tx.category.create({
+        data: { name: 'General', emoji: '📂', serverId: server.id },
+      })
+
+      // Default channels
+      const chat = await tx.channel.create({
+        data: { name: 'chat', type: 'text', categoryId: category.id, serverId: server.id, isPrivate: false },
+      })
+      const join = await tx.channel.create({
+        data: { name: 'join', type: 'announcement', categoryId: category.id, serverId: server.id, isPrivate: false },
+      })
+      const leave = await tx.channel.create({
+        data: { name: 'leave', type: 'announcement', categoryId: category.id, serverId: server.id, isPrivate: false },
+      })
+      const voice = await tx.channel.create({
+        data: { name: 'Voice Channel', type: 'voice', categoryId: category.id, serverId: server.id, isPrivate: false },
+      })
+
+      // Fallback admin-only welcome channel
+      const fallback = await tx.channel.create({
+        data: { name: 'welcome-prince', type: 'announcement', categoryId: category.id, serverId: server.id, isPrivate: true },
+      })
+      // Seed informative message in fallback channel
+      await tx.message.create({
+        data: {
+          content: 'Welcome to official software created by Prince for a quick solution of communication.',
+          userId: ownerId,
+          channelId: fallback.id,
+          mentions: '[]',
+          attachments: '[]',
+        },
+      })
+
+      return { server, defaults: { category, chat, join, leave, voice, fallback } }
     })
 
-    // Add owner as first member
-    await prisma.serverMember.create({
-      data: {
-        userId: ownerId,
-        serverId: server.id,
-        role: 'owner',
-      },
-    })
-
-    return NextResponse.json(server)
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Server creation error:', error)
     return NextResponse.json(

@@ -10,12 +10,19 @@ function buildCsp() {
       ? "script-src 'self' 'unsafe-inline' https:"
       : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
     // Styles: keep 'unsafe-inline' for common frameworks; can be tightened later with nonces
-    "style-src 'self' 'unsafe-inline' https:",
+    // Allow Google Fonts stylesheets
+    "style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https:",
-    // Allow AI backends; localhost Ollama allowed for local only
-    "connect-src 'self' https: wss: http://localhost:11434 https://generativelanguage.googleapis.com",
-    "frame-ancestors 'none'",
+    // Allow Google Fonts font files
+    "font-src 'self' data: https: https://fonts.gstatic.com",
+    // Allow AI backends; expand in dev to allow local/ip http and ws
+    (isProd
+      ? "connect-src 'self' https: wss: https://generativelanguage.googleapis.com https://www.googleapis.com"
+      : "connect-src 'self' http: https: ws: wss: http://localhost:11434 https://generativelanguage.googleapis.com https://www.googleapis.com"),
+    // Allow embedding our own pages and YouTube iframes
+    "frame-ancestors 'self'",
+    // Explicitly allow YouTube embeds (player/iframe)
+    "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

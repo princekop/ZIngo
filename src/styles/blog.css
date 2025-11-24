@@ -1,0 +1,357 @@
+/* Blog Page Custom Scrollbar and Animations */
+
+/* Custom Scrollbar for Blog */
+.blog-container {
+  scrollbar-width: thin;
+  scrollbar-color: #3b82f6 #1f2937;
+}
+
+.blog-container::-webkit-scrollbar {
+  width: 14px;
+}
+
+.blog-container::-webkit-scrollbar-track {
+  background: linear-gradient(to bottom, #111827, #1f2937, #111827);
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.blog-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #3b82f6, #6366f1, #8b5cf6);
+  border-radius: 8px;
+  border: 2px solid #1f2937;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+  transition: all 0.3s ease;
+}
+
+.blog-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #60a5fa, #818cf8, #a78bfa);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  transform: scaleX(1.1);
+}
+
+.blog-container::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(to bottom, #93c5fd, #a5b4fc, #c4b5fd);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.8);
+}
+
+.blog-container::-webkit-scrollbar-corner {
+  background: #1f2937;
+}
+
+.blog-container::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Smooth Scroll Behavior */
+.blog-container {
+  scroll-behavior: smooth;
+  scroll-padding-top: 2rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Smooth scrolling for the entire page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced scroll options */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+.scroll-auto {
+  scroll-behavior: auto;
+}
+
+/* Scroll snap for better UX */
+.scroll-snap-y {
+  scroll-snap-type: y mandatory;
+}
+
+.scroll-snap-start {
+  scroll-snap-align: start;
+}
+
+.scroll-snap-center {
+  scroll-snap-align: center;
+}
+
+/* Scroll to top button animation */
+.scroll-to-top {
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scroll-to-top.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.scroll-to-top:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+}
+
+/* Blog Animations */
+@keyframes blogFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blogSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes blogCardHover {
+  from {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+  to {
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(59, 130, 246, 0.3);
+  }
+}
+
+@keyframes blogPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes blogShimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Animation Classes */
+.blog-fade-in {
+  animation: blogFadeIn 0.6s ease-out forwards;
+}
+
+.blog-slide-in {
+  animation: blogSlideIn 0.8s ease-out forwards;
+}
+
+.blog-card-hover {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.blog-card-hover:hover {
+  animation: blogCardHover 0.3s ease-out forwards;
+}
+
+.blog-pulse {
+  animation: blogPulse 2s ease-in-out infinite;
+}
+
+.blog-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.4),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: blogShimmer 2s infinite;
+}
+
+/* Staggered Animation Delays */
+.blog-delay-100 { animation-delay: 0.1s; }
+.blog-delay-200 { animation-delay: 0.2s; }
+.blog-delay-300 { animation-delay: 0.3s; }
+.blog-delay-400 { animation-delay: 0.4s; }
+.blog-delay-500 { animation-delay: 0.5s; }
+
+/* Enhanced Card Effects */
+.blog-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.blog-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.1),
+    transparent
+  );
+  transition: left 0.6s ease;
+  z-index: 1;
+}
+
+.blog-card:hover::before {
+  left: 100%;
+}
+
+.blog-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+}
+
+/* Featured Post Glow */
+.blog-featured {
+  position: relative;
+}
+
+.blog-featured::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(45deg, #3b82f6, #8b5cf6, #3b82f6);
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.6;
+  filter: blur(8px);
+  animation: blogPulse 3s ease-in-out infinite;
+}
+
+/* Search Input Enhancement */
+.blog-search {
+  position: relative;
+  overflow: hidden;
+}
+
+.blog-search::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.1),
+    transparent
+  );
+  transition: left 0.8s ease;
+}
+
+.blog-search:focus-within::before {
+  left: 100%;
+}
+
+/* Loading Skeleton */
+.blog-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(59, 130, 246, 0.1) 25%,
+    rgba(139, 92, 246, 0.2) 50%,
+    rgba(59, 130, 246, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: blogShimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Category Badge Animation */
+.blog-category-badge {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.blog-category-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+/* Newsletter Section */
+.blog-newsletter {
+  background: linear-gradient(135deg, #1e40af, #7c3aed);
+  position: relative;
+  overflow: hidden;
+}
+
+.blog-newsletter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 70%
+  );
+  animation: blogShimmer 3s ease-in-out infinite;
+}
+
+/* Responsive Enhancements */
+@media (max-width: 768px) {
+  .blog-container::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .blog-card:hover {
+    transform: translateY(-2px) scale(1.01);
+  }
+}
+
+/* Dark Mode Enhancements */
+@media (prefers-color-scheme: dark) {
+  .blog-container::-webkit-scrollbar-track {
+    background: linear-gradient(to bottom, #0f172a, #1e293b, #0f172a);
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .blog-container::-webkit-scrollbar-thumb {
+    background: #60a5fa;
+    border: 2px solid #000000;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .blog-fade-in,
+  .blog-slide-in,
+  .blog-card-hover,
+  .blog-pulse,
+  .blog-shimmer {
+    animation: none;
+  }
+  
+  .blog-card:hover {
+    transform: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .blog-container::-webkit-scrollbar {
+    display: none;
+  }
+}

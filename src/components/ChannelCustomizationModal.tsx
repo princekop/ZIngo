@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { X, Upload, Image as ImageIcon, Video, FileText, Palette, Eye, EyeOff } from 'lucide-react'
 
 interface ChannelCustomizationModalProps {
@@ -35,6 +35,28 @@ export default function ChannelCustomizationModal({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [fonts, setFonts] = useState<string[]>([])
+  const [fontsLoading, setFontsLoading] = useState(false)
+
+  // Load a limited list of popular fonts for the picker
+  useEffect(() => {
+    let cancelled = false
+    if (!isOpen) return
+    const load = async () => {
+      try {
+        setFontsLoading(true)
+        const res = await fetch('/api/fonts/list?sort=popularity', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json().catch(() => ({}))
+        const fams = Array.isArray(data.families) ? data.families.slice(0, 60).map((f: any) => f.family).filter(Boolean) : []
+        if (!cancelled) setFonts(fams)
+      } finally {
+        setFontsLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [isOpen])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -200,6 +222,24 @@ export default function ChannelCustomizationModal({
                     </button>
                   ))}
                 </div>
+              </div>
+              {/* Font Family */}
+              <div>
+                <span className="text-xs text-gray-300 block mb-2">Font</span>
+                <select
+                  value={(customization as any).font || ''}
+                  onChange={(e) => setCustomization(prev => ({ ...prev, font: e.target.value || '' }))}
+                  className="w-full bg-white/5 border border-white/20 text-white text-sm rounded-lg px-3 py-2"
+                >
+                  <option value="" className="bg-gray-900">Default</option>
+                  {fontsLoading ? (
+                    <option className="bg-gray-900">Loading…</option>
+                  ) : (
+                    fonts.map(f => (
+                      <option key={f} value={f} className="bg-gray-900">{f}</option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
           </div>

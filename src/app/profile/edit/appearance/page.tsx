@@ -20,24 +20,41 @@ export default function AppearancePage() {
   const [fontScale, setFontScale] = useState<number>(100)
   const [vignette, setVignette] = useState<number>(0)
 
-  // Load existing settings
+  // Load existing settings: prefer server (/api/me), fallback to localStorage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('db_appearance')
-      if (saved) {
-        const obj = JSON.parse(saved)
-        if (obj.theme) setTheme(obj.theme)
-        if (typeof obj.chatBgUrl === 'string') setChatBgUrl(obj.chatBgUrl)
-        if (typeof obj.chatBgOpacity === 'number') setChatBgOpacity(obj.chatBgOpacity)
-        if (typeof obj.blur === 'number') setBlur(obj.blur)
-        if (typeof obj.useCustomGradient === 'boolean') setUseCustomGradient(obj.useCustomGradient)
-        if (typeof obj.fromColor === 'string') setFromColor(obj.fromColor)
-        if (typeof obj.viaColor === 'string') setViaColor(obj.viaColor)
-        if (typeof obj.toColor === 'string') setToColor(obj.toColor)
-        if (typeof obj.fontScale === 'number') setFontScale(obj.fontScale)
-        if (typeof obj.vignette === 'number') setVignette(obj.vignette)
-      }
-    } catch {}
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/me', { cache: 'no-store' })
+        if (res.ok) {
+          const me = await res.json()
+          if (cancelled) return
+          if (me.theme) setTheme(me.theme)
+          if (typeof me.chatBgUrl === 'string') setChatBgUrl(me.chatBgUrl || '')
+          if (typeof me.chatBgOpacity === 'number') setChatBgOpacity(me.chatBgOpacity)
+        }
+      } catch {}
+
+      // Also hydrate client-only extras from localStorage for preview controls
+      try {
+        const saved = localStorage.getItem('db_appearance')
+        if (saved) {
+          const obj = JSON.parse(saved)
+          if (obj.theme) setTheme(obj.theme)
+          if (typeof obj.chatBgUrl === 'string') setChatBgUrl(obj.chatBgUrl)
+          if (typeof obj.chatBgOpacity === 'number') setChatBgOpacity(obj.chatBgOpacity)
+          if (typeof obj.blur === 'number') setBlur(obj.blur)
+          if (typeof obj.useCustomGradient === 'boolean') setUseCustomGradient(obj.useCustomGradient)
+          if (typeof obj.fromColor === 'string') setFromColor(obj.fromColor)
+          if (typeof obj.viaColor === 'string') setViaColor(obj.viaColor)
+          if (typeof obj.toColor === 'string') setToColor(obj.toColor)
+          if (typeof obj.fontScale === 'number') setFontScale(obj.fontScale)
+          if (typeof obj.vignette === 'number') setVignette(obj.vignette)
+        }
+      } catch {}
+    }
+    load()
+    return () => { cancelled = true }
   }, [])
 
   // Persist settings
@@ -237,7 +254,25 @@ export default function AppearancePage() {
                 Reset
               </Button>
               <Button
-                onClick={() => router.push('/dash')}
+                onClick={async () => {
+                  try {
+                    // Persist to server
+                    await fetch('/api/me', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        theme,
+                        chatBgUrl: chatBgUrl || null,
+                        chatBgOpacity,
+                      }),
+                    })
+                    // Keep localStorage in sync for legacy consumers
+                    try {
+                      localStorage.setItem('db_appearance', JSON.stringify({ theme, chatBgUrl, chatBgOpacity, blur, useCustomGradient, fromColor, viaColor, toColor, fontScale, vignette }))
+                    } catch {}
+                    router.push('/dash')
+                  } catch {}
+                }}
                 className="ml-auto bg-skyBlue text-white hover:bg-skyBlue/80"
               >
                 Save

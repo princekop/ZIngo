@@ -73,12 +73,8 @@ export async function PUT(
       'linear-gradient(90deg, red, orange, yellow, green, cyan, blue, violet)',
       'linear-gradient(90deg,#8a2be2,#00ffff)',
     ])
-    const allowedFonts = new Set([
-      // Note: ensure these fonts are loaded in the frontend for accurate rendering
-      'Inter', 'Poppins', 'Montserrat', 'Raleway', 'Oswald', 'Roboto Slab', 'Merriweather', 'Playfair Display', 'Lobster', 'Bebas Neue',
-      'Press Start 2P', 'Orbitron', 'Audiowide', 'Bangers', 'Black Ops One', 'Teko', 'Anton', 'Cinzel', 'Caveat', 'Permanent Marker',
-      'Rubik', 'Kanit', 'Fjalla One', 'Russo One', 'Saira Stencil One', 'Secular One', 'Tourney', 'Varela Round', 'Nunito', 'Asap'
-    ])
+    // Safe font-family: allow common characters
+    const fontFamilySafe = (s: string) => /^[A-Za-z0-9 \-&,']{1,64}$/.test(s)
     let safeNameColor: string | null = null
     let safeNameGradient: string | null = null
     let safeNameAnimation: string | null = null
@@ -97,8 +93,8 @@ export async function PUT(
     }
     if (font === undefined || font === null || font === '' || font === 'default') {
       safeFont = null
-    } else if (typeof font === 'string' && allowedFonts.has(font)) {
-      safeFont = font
+    } else if (typeof font === 'string' && fontFamilySafe(font)) {
+      safeFont = font.trim()
     }
 
     // Update channel customization (with graceful fallback if Prisma Client is stale)

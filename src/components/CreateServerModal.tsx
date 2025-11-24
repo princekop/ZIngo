@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Upload, Image as ImageIcon, Cloud, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 
 interface CreateServerModalProps {
   onClose: () => void
@@ -145,10 +146,10 @@ export default function CreateServerModal({ onClose, onServerCreated, userId }: 
         members: 1,
         ownerId: userId
       })
-
+      toast.success('Server created successfully ✨', { duration: 1200 })
     } catch (error) {
       console.error('Error creating server:', error)
-      alert(`Failed to create server: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(`Failed to create server`, { duration: 1200 })
     } finally {
       setIsLoading(false)
       setUploadProgress(0)

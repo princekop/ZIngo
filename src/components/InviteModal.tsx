@@ -13,6 +13,7 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Invite {
   id: string
@@ -85,9 +86,11 @@ export default function InviteModal({ isOpen, onClose, serverId, serverName }: I
         setInvites(prev => [newInvite, ...prev])
         setExpiresIn('')
         setMaxUses('')
+        toast.success('Invite created', { duration: 1200 })
       }
     } catch (error) {
       console.error('Error creating invite:', error)
+      toast.error('Failed to create invite', { duration: 1200 })
     } finally {
       setCreating(false)
     }
@@ -98,6 +101,7 @@ export default function InviteModal({ isOpen, onClose, serverId, serverName }: I
     navigator.clipboard.writeText(inviteLink)
     setCopied(code)
     setTimeout(() => setCopied(null), 2000)
+    toast.success('Link copied', { duration: 1000 })
   }
 
   const deleteInvite = async (inviteId: string) => {
@@ -108,9 +112,11 @@ export default function InviteModal({ isOpen, onClose, serverId, serverName }: I
 
       if (response.ok) {
         setInvites(prev => prev.filter(invite => invite.id !== inviteId))
+        toast.success('Invite deleted', { duration: 1200 })
       }
     } catch (error) {
       console.error('Error deleting invite:', error)
+      toast.error('Failed to delete invite', { duration: 1200 })
     }
   }
 

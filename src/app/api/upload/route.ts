@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, readdir, stat, rm } from 'fs/promises'
 import { join } from 'path'
+import { getServerSession } from 'next-auth'
+import { prisma } from '@/lib/prisma'
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 const ALLOWED_FILE_TYPES = [
   'image/jpeg',
   'image/png',
@@ -19,16 +21,59 @@ const ALLOWED_FILE_TYPES = [
   'application/x-rar-compressed',
 ]
 
+export async function GET() {
+  try {
+    const dirNew = join(process.cwd(), 'public', 'assets')
+    const dirOld = join(process.cwd(), 'public', 'assests') // legacy typo
+    try { await mkdir(dirNew, { recursive: true }) } catch {}
+    const listNew = await readdir(dirNew).catch(() => [])
+    const listOld = await readdir(dirOld).catch(() => [])
+    const itemsNew = await Promise.all(listNew.map(async (name) => {
+      const filePath = join(dirNew, name)
+      const s = await stat(filePath)
+      return { name, url: `/assets/${name}`, size: s.size, mtime: s.mtime }
+    }))
+    const itemsOld = await Promise.all(listOld.map(async (name) => {
+      const filePath = join(dirOld, name)
+      const s = await stat(filePath)
+      return { name, url: `/assests/${name}`, size: s.size, mtime: s.mtime }
+    }))
+    const items = [...itemsNew, ...itemsOld]
+    items.sort((a, b) => +b.mtime - +a.mtime)
+    return NextResponse.json(items)
+  } catch (e) {
+    return NextResponse.json({ error: 'List failed' }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession()
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
+    const uploadType = formData.get('type') as string || 'general'
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    }
+
+    // Find user in database
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: (session.user as any).id },
+          { email: session.user.email || '' }
+        ]
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 401 })
     }
 
     // Check file size
@@ -62,7 +107,25 @@ export async function POST(request: NextRequest) {
           token: process.env.BLOB_READ_WRITE_TOKEN,
         })
 
+        // Save upload record to database
+        const uploadRecord = await prisma.upload.create({
+          data: {
+            filename: filename,
+            originalName: file.name,
+            mimeType: file.type,
+            size: file.size,
+            url: blob.url,
+            uploadedBy: user.id,
+            uploadType: uploadType,
+            metadata: JSON.stringify({
+              timestamp,
+              provider: 'vercel-blob'
+            })
+          }
+        })
+
         return NextResponse.json({ 
+          id: uploadRecord.id,
           url: blob.url,
           filename: file.name,
           size: file.size,
@@ -74,7 +137,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback: Local file storage for development
-    const uploadsDir = join(process.cwd(), 'public', 'uploads')
+    const uploadsDir = join(process.cwd(), 'public', 'assets')
     
     // Ensure uploads directory exists
     try {
@@ -89,9 +152,27 @@ export async function POST(request: NextRequest) {
     
     await writeFile(filePath, buffer)
     
-    const localUrl = `/uploads/${filename}`
+    const localUrl = `/assets/${filename}`
+
+    // Save upload record to database
+    const uploadRecord = await prisma.upload.create({
+      data: {
+        filename: filename,
+        originalName: file.name,
+        mimeType: file.type,
+        size: file.size,
+        url: localUrl,
+        uploadedBy: user.id,
+        uploadType: uploadType,
+        metadata: JSON.stringify({
+          timestamp,
+          provider: 'local'
+        })
+      }
+    })
 
     return NextResponse.json({ 
+      id: uploadRecord.id,
       url: localUrl,
       filename: file.name,
       size: file.size,
@@ -105,4 +186,19 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const name = searchParams.get('name')
+    if (!name) return NextResponse.json({ error: 'Missing name' }, { status: 400 })
+    const filePathNew = join(process.cwd(), 'public', 'assets', name)
+    const filePathOld = join(process.cwd(), 'public', 'assests', name)
+    try { await rm(filePathNew); return NextResponse.json({ ok: true }) } catch {}
+    try { await rm(filePathOld); return NextResponse.json({ ok: true }) } catch {}
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  } catch (e) {
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+  }
+}

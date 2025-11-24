@@ -45,6 +45,17 @@ export async function GET(
       )
     }
 
+    const activeBoosts = await prisma.userBoost.count({
+      where: {
+        serverId,
+        isActive: true,
+        OR: [
+          { expiresAt: null },
+          { expiresAt: { gt: new Date() } },
+        ],
+      },
+    })
+
     return NextResponse.json({
       id: server.id,
       name: server.name,
@@ -54,12 +65,15 @@ export async function GET(
       ownerId: server.ownerId,
       owner: server.owner,
       members: server._count.members,
+      onlineMembers: Math.floor(server._count.members * 0.7), // Simulate online count as 70% of total
       createdAt: server.createdAt,
       updatedAt: server.updatedAt,
       tag: (server as any).tag ?? null,
       byteeLevel: (server as any).byteeLevel ?? 0,
       advertisementEnabled: (server as any).advertisementEnabled ?? false,
       advertisementText: (server as any).advertisementText ?? null,
+      boostLevel: (server as any).boostLevel ?? 0,
+      boosts: activeBoosts,
     })
   } catch (error) {
     console.error('Get server error:', error)

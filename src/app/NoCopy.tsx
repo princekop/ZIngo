@@ -4,13 +4,6 @@ import { useEffect } from 'react'
 
 export default function NoCopy() {
   useEffect(() => {
-    const onContextMenu = (e: MouseEvent) => {
-      // Allow inside editable fields
-      const target = e.target as HTMLElement | null
-      const isEditable = target && (target.isContentEditable || ['INPUT', 'TEXTAREA'].includes(target.tagName))
-      if (!isEditable) e.preventDefault()
-    }
-
     const onDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement | null
       const tag = target?.tagName || ''
@@ -33,12 +26,10 @@ export default function NoCopy() {
       }
     }
 
-    window.addEventListener('contextmenu', onContextMenu)
     window.addEventListener('dragstart', onDragStart)
     window.addEventListener('keydown', onKeyDown, { capture: true })
 
     return () => {
-      window.removeEventListener('contextmenu', onContextMenu)
       window.removeEventListener('dragstart', onDragStart)
       window.removeEventListener('keydown', onKeyDown, { capture: true } as any)
     }

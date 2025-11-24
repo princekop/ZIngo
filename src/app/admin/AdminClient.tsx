@@ -12,7 +12,8 @@ type AdminUser = {
   displayName: string
   avatar?: string | null
   isAdmin: boolean
-  nitroLevel: number
+  status?: string
+  membership?: { tier: string; startedAt?: string; expiresAt?: string } | null
   createdAt: string
 }
 
@@ -35,7 +36,7 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
   const [tab, setTab] = useState<'users' | 'servers'>('users')
   const [userQuery, setUserQuery] = useState('')
   const [serverQuery, setServerQuery] = useState('')
-  const [userSort, setUserSort] = useState<'created_desc' | 'created_asc' | 'nitro_desc'>('created_desc')
+  const [userSort, setUserSort] = useState<'created_desc' | 'created_asc'>('created_desc')
   const [serverSort, setServerSort] = useState<'created_desc' | 'created_asc' | 'members_desc' | 'boost_desc'>('created_desc')
   const [userPage, setUserPage] = useState(1)
   const [serverPage, setServerPage] = useState(1)
@@ -93,7 +94,6 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
     list.sort((a, b) => {
       if (userSort === 'created_desc') return (b.createdAt > a.createdAt) ? 1 : -1
       if (userSort === 'created_asc') return (a.createdAt > b.createdAt) ? 1 : -1
-      if (userSort === 'nitro_desc') return (b.nitroLevel ?? 0) - (a.nitroLevel ?? 0)
       return 0
     })
     const total = list.length
@@ -125,11 +125,11 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
   const kpis = useMemo(() => {
     const totalUsers = u.length
     const adminCount = u.filter(x => x.isAdmin).length
-    const avgNitro = totalUsers ? (u.reduce((acc, x) => acc + (x.nitroLevel ?? 0), 0) / totalUsers) : 0
+    const activeByte = u.filter(x => !!x.membership).length
     const totalServers = s.length
     const totalBoost = s.reduce((acc, x) => acc + (x.byteeLevel ?? 0), 0)
     const totalMembers = s.reduce((acc, x) => acc + (x.members ?? 0), 0)
-    return { totalUsers, adminCount, avgNitro, totalServers, totalBoost, totalMembers }
+    return { totalUsers, adminCount, activeByte, totalServers, totalBoost, totalMembers }
   }, [u, s])
 
   const toggleUserSelect = (id: string) => {
@@ -243,17 +243,50 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
     })
   }
 
-  const applyBulkNitro = async () => {
-    if (bulkUserNitro === '' || bulkUserNitro < 0) return
-    if (!confirm(`Set Nitro=${bulkUserNitro} for ${selectedUsers.size} users?`)) return
-    setSaving('bulk-nitro')
-    setError(null)
-    const ids = Array.from(selectedUsers)
-    const results = await Promise.allSettled(ids.map(id => setNitro(id, Number(bulkUserNitro))))
-    const rejected = results.filter(r => r.status === 'rejected')
-    setSaving(null)
-    setSuccess(`Updated ${ids.length - rejected.length}/${ids.length} users`)
-    setTimeout(() => setSuccess(null), 3000)
+  const grantByte = async (userId: string, months: number) => {
+    try {
+      setSaving(`grant-${userId}`)
+      setError(null)
+      const res = await fetch(`/api/admin/users/${userId}/membership`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ months }) })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Failed (${res.status})`)
+      }
+      // mark membership on user in UI
+      setU(prev => prev.map(x => x.id === userId ? { ...x, membership: { tier: 'Byte', expiresAt: new Date(Date.now()).toISOString() } } : x))
+      setSuccess(`Granted Byte for ${months} month(s)`) 
+    } catch (e: any) { setError(e.message || 'Failed to grant Byte') }
+    finally { setSaving(null); setTimeout(() => { setSuccess(null); setError(null) }, 3000) }
+  }
+
+  const cancelByte = async (userId: string) => {
+    try {
+      if (!confirm('Cancel Byte for this user?')) return
+      setSaving(`cancel-${userId}`)
+      setError(null)
+      const res = await fetch(`/api/admin/users/${userId}/membership`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Failed (${res.status})`)
+      }
+      setU(prev => prev.map(x => x.id === userId ? { ...x, membership: null } : x))
+      setSuccess('Canceled Byte')
+    } catch (e: any) { setError(e.message || 'Failed to cancel Byte') }
+    finally { setSaving(null); setTimeout(() => { setSuccess(null); setError(null) }, 3000) }
+  }
+
+  const toggleAdmin = async (userId: string, current: boolean) => {
+    try {
+      setSaving(`admin-${userId}`)
+      const res = await fetch(`/api/admin/users/${userId}/admin`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isAdmin: !current }) })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Failed (${res.status})`)
+      }
+      setU(prev => prev.map(x => x.id === userId ? { ...x, isAdmin: !current } : x))
+      setSuccess('Updated role')
+    } catch (e: any) { setError(e.message || 'Failed to update role') }
+    finally { setSaving(null); setTimeout(() => { setSuccess(null); setError(null) }, 3000) }
   }
 
   const applyBulkBoost = async () => {
@@ -337,8 +370,8 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
             <div className="text-xs text-yellow-300/90">Admins: {kpis.adminCount}</div>
           </div>
           <div className="p-4 rounded-[15px] backdrop-blur-xl ring-1 ring-white/10 bg-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition-transform hover:translate-y-[-1px]">
-            <div className="text-gray-400 text-xs">Avg Nitro</div>
-            <div className="text-2xl font-semibold">{kpis.avgNitro.toFixed(1)}</div>
+            <div className="text-gray-400 text-xs">Active Byte</div>
+            <div className="text-2xl font-semibold">{kpis.activeByte}</div>
           </div>
           <div className="p-4 rounded-[15px] backdrop-blur-xl ring-1 ring-white/10 bg-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition-transform hover:translate-y-[-1px]">
             <div className="text-gray-400 text-xs">Servers</div>
@@ -372,7 +405,6 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
                 >
                   <option value="created_desc">Newest</option>
                   <option value="created_asc">Oldest</option>
-                  <option value="nitro_desc">Nitro high → low</option>
                 </select>
               </div>
             </div>
@@ -393,36 +425,15 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
                         <button onClick={() => setDetailUser(user)} className="font-medium hover:underline">{user.displayName}</button> <span className="text-gray-400">@{user.username}</span> {user.isAdmin && (<span className="ml-2 text-xs bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded-full align-middle">Admin</span>)}
                       </div>
                       <div className="text-gray-400 text-sm">{user.email}</div>
-                      <div className="text-gray-400 text-sm">Nitro: <span className="text-white/90 font-medium">{user.nitroLevel ?? 0}</span></div>
+                      <div className="text-gray-400 text-sm">Byte: <span className="text-white/90 font-medium">{user.membership ? 'Active' : 'None'}</span></div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-gray-300">Nitro</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="w-20 bg-white/10 border-white/10 rounded-[12px] text-white"
-                        defaultValue={user.nitroLevel}
-                        id={`nitro-${user.id}`}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            const val = parseInt((e.target as HTMLInputElement).value, 10)
-                            if (Number.isFinite(val) && val >= 0) setNitro(user.id, val)
-                          }
-                        }}
-                      />
-                      <Button size="sm" onClick={() => setNitro(user.id, Math.max(0, (user.nitroLevel ?? 0) + 1))} className="bg-white/10 hover:bg-white/20 rounded-[10px]">
-                        +1
-                      </Button>
-                      <Button size="sm" onClick={() => setNitro(user.id, Math.max(0, (user.nitroLevel ?? 0) + 10))} className="bg-white/10 hover:bg-white/20 rounded-[10px]">
-                        +10
-                      </Button>
-                      <Button size="sm" onClick={() => {
-                          const el = (e?: any) => document.getElementById(`nitro-${user.id}`) as HTMLInputElement | null
-                          const val = parseInt(el()?.value || `${user.nitroLevel ?? 0}`, 10)
-                          if (Number.isFinite(val) && val >= 0) setNitro(user.id, val)
-                        }} disabled={saving === `nitro-${user.id}`} className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 rounded-[10px] shadow-[0_6px_20px_rgba(168,85,247,0.35)]">
-                        {saving === `nitro-${user.id}` ? 'Saving...' : 'Set'}
-                      </Button>
+                      <Button size="sm" onClick={() => grantByte(user.id, 1)} disabled={saving === `grant-${user.id}`} className="bg-white/10 hover:bg-white/20 rounded-[10px]">1m Byte</Button>
+                      <Button size="sm" onClick={() => grantByte(user.id, 3)} disabled={saving === `grant-${user.id}`} className="bg-white/10 hover:bg-white/20 rounded-[10px]">3m</Button>
+                      <Button size="sm" onClick={() => grantByte(user.id, 6)} disabled={saving === `grant-${user.id}`} className="bg-white/10 hover:bg-white/20 rounded-[10px]">6m</Button>
+                      <Button size="sm" onClick={() => grantByte(user.id, 12)} disabled={saving === `grant-${user.id}`} className="bg-white/10 hover:bg-white/20 rounded-[10px]">12m</Button>
+                      <Button size="sm" variant="destructive" onClick={() => cancelByte(user.id)} disabled={saving === `cancel-${user.id}`} className="bg-red-500/20 text-red-200 border border-red-500/30 rounded-[10px] hover:bg-red-500/30">Cancel</Button>
+                      <Button size="sm" onClick={() => toggleAdmin(user.id, user.isAdmin)} disabled={saving === `admin-${user.id}`} className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 rounded-[10px] shadow-[0_6px_20px_rgba(168,85,247,0.35)]">{user.isAdmin ? 'Revoke Admin' : 'Make Admin'}</Button>
                     </div>
                   </div>
                 </div>
@@ -430,9 +441,16 @@ export default function AdminClient({ users, servers }: { users: AdminUser[]; se
             </div>
             {selectedUsers.size > 0 && (
               <div className="mt-4 p-3 rounded-[15px] backdrop-blur-xl ring-1 ring-white/10 bg-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex items-center gap-2">
-                <div className="text-sm text-gray-300">Bulk Nitro for {selectedUsers.size} users:</div>
-                <Input type="number" min={0} value={bulkUserNitro} onChange={(e) => setBulkUserNitro(e.target.value === '' ? '' : Number(e.target.value))} className="w-24 bg-white/10 border-white/10 rounded-[12px]" />
-                <Button size="sm" className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 rounded-[10px]" disabled={saving === 'bulk-nitro'} onClick={applyBulkNitro}>{saving === 'bulk-nitro' ? 'Applying...' : 'Apply'}</Button>
+                <div className="text-sm text-gray-300">Bulk Byte grant for {selectedUsers.size} users:</div>
+                <Input type="number" min={1} value={bulkUserNitro} onChange={(e) => setBulkUserNitro(e.target.value === '' ? '' : Number(e.target.value))} className="w-24 bg-white/10 border-white/10 rounded-[12px]" />
+                <Button size="sm" className="bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 rounded-[10px]" disabled={saving === 'bulk-byte'} onClick={async ()=>{
+                  if (bulkUserNitro === '' || Number(bulkUserNitro) < 1) return
+                  setSaving('bulk-byte'); setError(null)
+                  const ids = Array.from(selectedUsers)
+                  const results = await Promise.allSettled(ids.map(id => fetch(`/api/admin/users/${id}/membership`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ months: Number(bulkUserNitro) }) })))
+                  const rejected = results.filter(r=>r.status==='rejected')
+                  setSaving(null); setSuccess(`Granted Byte to ${ids.length - rejected.length}/${ids.length}`); setTimeout(()=>setSuccess(null),3000)
+                }}>{saving==='bulk-byte'?'Applying...':'Apply'}</Button>
                 <Button size="sm" variant="secondary" className="bg-white/10 rounded-[10px]" onClick={() => setSelectedUsers(new Set())}>Clear selection</Button>
               </div>
             )}

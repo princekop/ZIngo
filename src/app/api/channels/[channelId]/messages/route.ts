@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-config'
+import { checkRateLimit, validateMessageContent, sanitizeHTML, getClientIP } from '@/lib/security'
 
 // Channel and server constants
 const COMMUNITY_SERVER_ID = 'cmdyince50002dl08h97cn2rb'
@@ -178,6 +179,7 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: {
         channelId: channelId,
+        deleted: false,
       },
       include: {
         user: {
@@ -239,12 +241,21 @@ export async function GET(
         id: message.id,
         content: message.content,
         userId: message.userId,
+        username: message.user?.displayName || message.user?.username || 'Unknown User',
+        avatar: message.user?.avatar || null,
         channelId: message.channelId,
         replyToId: message.replyToId,
+        user: message.user ? {
+          id: message.user.id,
+          displayName: message.user.displayName,
+          username: message.user.username,
+          avatar: message.user.avatar,
+        } : null,
         replyTo: message.replyTo ? {
           id: message.replyTo.id,
           content: message.replyTo.content ?? '',
           userId: message.replyTo.userId ?? null,
+          username: replyUser?.displayName || replyUser?.username || 'Unknown User',
           user: replyUser ? {
             id: replyUser.id,
             displayName: replyUser.displayName,
@@ -272,6 +283,7 @@ export async function GET(
         reactions: (message.reactions || []).map(r => ({
           emoji: r.emoji,
           users: (r.users || []).map(u => u.userId),
+          count: r.users?.length || 0,
         })),
       }
     })
@@ -298,6 +310,33 @@ export async function POST(
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Rate limiting - 10 messages per minute per user
+    const clientIP = getClientIP(request)
+    const rateLimitKey = `message:${session.user.id}:${clientIP}`
+    const rateLimit = checkRateLimit(rateLimitKey, 10, 60000)
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please slow down.' },
+        { 
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '10',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimit.resetTime.toString()
+          }
+        }
+      )
+    }
+
+    // Validate and sanitize message content
+    const validation = validateMessageContent(content)
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+    
+    const sanitizedContent = sanitizeHTML(content)
 
     if (!channelId) {
       return NextResponse.json(
@@ -341,8 +380,8 @@ export async function POST(
       server?.ownerId === session.user.id ||
       Boolean((session.user as any).isAdmin)
 
-    // Immediate read-only block for specific channels
-    if ([ENTRY_CHANNEL_ID, ANNOUNCEMENT_CHANNEL_ID, RULES_CHANNEL_ID].includes(channelId)) {
+    // Read-only block for specific channels (but allow owners/admins)
+    if ([ENTRY_CHANNEL_ID, ANNOUNCEMENT_CHANNEL_ID, RULES_CHANNEL_ID].includes(channelId) && !isOwnerAdmin) {
       return NextResponse.json({ error: 'This channel is read-only' }, { status: 403 })
     }
 
@@ -441,10 +480,10 @@ export async function POST(
       }
     }
 
-    // Create new message
+    // Create new message with sanitized content
     const message = await prisma.message.create({
       data: {
-        content,
+        content: sanitizedContent,
         userId: session.user.id,
         channelId,
         replyToId: replyToId || null,
@@ -557,8 +596,9 @@ export async function DELETE(
     if (session.user.id !== message.userId && !session.user.isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    await prisma.message.delete({ where: { id: messageId } })
-    return NextResponse.json({ success: true })
+    // Soft delete: mark as deleted, do not remove row
+    await prisma.message.update({ where: { id: messageId }, data: { deleted: true } })
+    return NextResponse.json({ success: true, deleted: true })
   } catch (error) {
     console.error('Delete message error:', error)
     return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 })

@@ -39,6 +39,8 @@ export async function GET(
       image: (r as any).image,
       // @ts-ignore
       isDefault: (r as any).isDefault,
+      // @ts-ignore
+      font: (r as any).font ?? null,
       permissions: JSON.parse(r.permissions || '[]'),
       memberCount: r.members.length,
       createdAt: r.createdAt,
@@ -67,7 +69,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, color, permissions, gradient, image, isDefault } = await request.json()
+    const { name, color, permissions, gradient, image, isDefault, font } = await request.json()
 
     if (!name) {
       return NextResponse.json({ error: 'Role name is required' }, { status: 400 })
@@ -92,7 +94,7 @@ export async function POST(
 
     let newRole: any
     try {
-      // Try full-feature path (schemas with gradient/image/isDefault)
+      // Try full-feature path (schemas with gradient/image/isDefault/font)
       if (isDefault === true) {
         // Unset all defaults first (if field exists in schema)
         try {
@@ -113,6 +115,8 @@ export async function POST(
           image: (image || null) as any,
           // @ts-ignore - if field exists
           isDefault: (!!isDefault) as any,
+          // @ts-ignore - if field exists
+          font: (font || null) as any,
           permissions: JSON.stringify(permissions || []),
           serverId,
         },
@@ -137,6 +141,7 @@ export async function POST(
       gradient: (newRole as any).gradient ?? null,
       image: (newRole as any).image ?? null,
       isDefault: (newRole as any).isDefault ?? false,
+      font: (newRole as any).font ?? null,
       permissions: JSON.parse(newRole.permissions || '[]'),
       memberCount: 0,
       createdAt: newRole.createdAt,

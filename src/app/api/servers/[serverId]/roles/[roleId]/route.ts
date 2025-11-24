@@ -31,6 +31,7 @@ export async function PATCH(
     if (typeof body.color === 'string') data.color = body.color
     if ('gradient' in body) data.gradient = (body.gradient ?? null) as any
     if ('animated' in body) data.animated = !!body.animated
+    if ('font' in body) data.font = (body.font ?? null) as any
     if (Array.isArray(body.permissions)) data.permissions = JSON.stringify(body.permissions)
     if (body.isDefault === true) {
       try { await prisma.serverRole.updateMany({ where: { serverId }, data: { isDefault: false as any } }) } catch {}
@@ -48,6 +49,7 @@ export async function PATCH(
       gradient: (updated as any).gradient ?? null,
       animated: (updated as any).animated ?? false,
       isDefault: (updated as any).isDefault ?? false,
+      font: (updated as any).font ?? null,
       permissions: JSON.parse(updated.permissions || '[]'),
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
